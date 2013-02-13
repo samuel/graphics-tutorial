@@ -313,7 +313,7 @@
 		if (document.getElementById("showSegments").checked)
 			battiato2003(dest, 8, 8, g_b2003Settings, ctx);
 	};
-    var g_rgbMapping = "independent";
+    var g_rgbMapping = "scaleY";
 	function reset() {
 		g_min = 0.0;
 		g_max = 1.0;
@@ -326,7 +326,7 @@
 		g_scurve_s = 0;
 		g_scurve_h = 0;
 		g_equalize = false;
-        g_rgbMapping = "independent";
+        g_rgbMapping = "scaleY";
 		updateDisplay();
 		refresh();
 	};
