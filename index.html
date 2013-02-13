@@ -39,9 +39,11 @@
 
         RGB mapping:
         <select id="rgbMapping">
-            <option value="independent" selected>Independent</option>
-            <option value="scaleY">Scale by Y</option>
-            <option value="applyToY">Apply to Y</option>
+            <option value="independent">Independent</option>
+            <option value="scaleY" selected>Scale by Y</option>
+            <option value="applyY">Apply to Y</option>
+<!--            <option value="applyL">Apply to L</option>
+            <option value="applyV">Apply to V</option> -->
         </select>
 
 		<input type="range" id="gamma" min="0" max="255" value="127">
@@ -396,7 +398,7 @@
 		refresh();
 	};
 
-	document.getElementById("rgbMapping") = function() {
+	document.getElementById("rgbMapping").onchange = function() {
         g_rgbMapping = document.getElementById("rgbMapping").value;
 		refresh2();
 	};
