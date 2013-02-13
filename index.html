@@ -1,0 +1,629 @@
+<html>
+<head>
+	<title>Graphics</title>
+	<style type="text/css">
+	canvas {
+		image-rendering: optimizeQuality:;
+	}
+	</style>
+	<script type="text/javascript" src="utils.js"></script>
+	<script type="text/javascript" src="curves.js"></script>
+	<script type="text/javascript" src="guided.js"></script>
+	<script type="text/javascript" src="histogram.js"></script>
+	<script type="text/javascript" src="battiato2003.js"></script>
+	<script type="text/javascript" src="bhukhanwala1994.js"></script>
+	<script type="text/javascript" src="skindetection.js"></script>
+</head>
+<body>
+	<div style="float:left;">
+		<select id="imageFile">
+			<option value="autolevel2.jpg" selected>Coffee</option>
+		</select><br>
+		<canvas id="image" width="640" height="480"></canvas>
+	</div>
+
+	<div style="padding-left: 650px;">
+		<button id="reset">Reset</button>
+		<button id="refresh">Refresh</button>
+		<button id="autolevel">Autolevel</button>
+		<button id="autoexposure">Auto Exposure</button>
+		<button id="b1994">B1994</button>
+		<button id="b2003">B2003</button>
+		<button id="skinDetect">Skin</button><br>
+
+		<input type="checkbox" id="equalize" value="false">
+		Histogram Equalization
+		<input type="checkbox" id="yscalergb" value="false">
+		Y scale RGB
+		<input type="checkbox" id="showSegments" value="false">
+		Show Segments<br>
+
+		<input type="range" id="gamma" min="0" max="255" value="127">
+		<input type="text" id="gammaDisplay" value="1.0">
+		Gamma<br>
+
+		<input type="range" id="min" min="0" max="255" value="0">
+		<input type="text" id="minDisplay" value="0">
+		Min<br>
+
+		<input type="range" id="max" min="0" max="255" value="255">
+		<input type="text" id="maxDisplay" value="255">
+		Max<br>
+
+		<input type="range" id="exposureSlider" min="-80" max="80" value="0">
+		<input type="text" id="exposureDisplay" value="0">
+		Exposure<br>
+
+		<input type="range" id="exposureCSlider" min="1" max="300" value="75">
+		<input type="text" id="exposureCDisplay" value="0.75">
+		Exposure C<br>
+
+		<input type="range" id="exposureASlider" min="1" max="500" value="100">
+		<input type="text" id="exposureADisplay" value="1.0">
+		Exposure A<br>
+
+		<input type="range" id="sCurveSSlider" min="-20" max="20" value="0">
+		<input type="text" id="sCurveSDisplay" value="0">
+		S-Curve Shadows<br>
+
+		<input type="range" id="sCurveHSlider" min="-20" max="20" value="0">
+		<input type="text" id="sCurveHDisplay" value="0">
+		S-Curve Highlights<br>
+
+		<input type="range" id="blurRadius" min="0" max="40" value="0">
+		<input type="text" id="blurRadiusDisplay" value="0">
+		Guided Blur Radius<br>
+
+		<input type="range" id="blurEPS" min="1" max="30000" value="2000">
+		<input type="text" id="blurEPSDisplay" value="2000">
+		Guided Blur EPS<br>
+
+		<input type="range" id="b2003alphaSlider" min="0" max="100" value="40">
+		<input type="text" id="b2003alphaDisplay" value="0.4">
+		B2003 Alpha (Focus &lt;-&gt; Contrast)<br>
+
+		<input type="range" id="b2003noiseSlider" min="0" max="100" value="30">
+		<input type="text" id="b2003noiseDisplay" value="0.3">
+		B2003 Noise Threshold<br>
+
+		<input type="range" id="b2003visualSlider" min="0" max="100" value="10">
+		<input type="text" id="b2003visualDisplay" value="0.1">
+		B2003 Visual Threshold<br>
+
+		<canvas id="lut" width="256" height="256" style="float:left;"></canvas>
+		<canvas id="hist" width="256" height="256"></canvas>
+	</div>
+
+	<script type="text/javascript">
+	var g_last_lut = identityLUT();
+
+	var lutCanvas = document.getElementById("lut");
+	var lutCtx = lutCanvas.getContext("2d");
+	function renderLUT(lut) {
+		lutCtx.lineWidth = 1;
+		lutCtx.fillStyle = "white";
+		lutCtx.strokeStyle = "black";
+		lutCtx.fillRect(0, 0, 256, 256);
+		for(var i = 0; i < lut.length; i++) {
+			lutCtx.beginPath();
+			lutCtx.moveTo(i, 255-lut[i]);
+			lutCtx.lineTo(i, 255);
+			lutCtx.stroke();
+		}
+	}
+
+	var lutMouseDown = false;
+	var lutLastX = -1;
+	var lutLastY = -1;
+	lutCanvas.onmousedown = function(ev) {
+		lutMouseDown = true;
+		lutLastX = -1;
+		lutLastY = -1;
+	};
+	lutCanvas.onmouseup = function(ev) {
+		lutMouseDown = false;
+	};
+	lutCanvas.onmousemove = function(ev) {
+		if (lutMouseDown) {
+			var newX = ev.offsetX;
+			var newY = ev.offsetY;
+			if (lutLastX >= 0) {
+				if (newX < lutLastX) {
+					var y = newY;
+					var dy = (lutLastY - newY) / (lutLastX - newX);
+					for(var x = newX; x < lutLastX; x++) {
+						g_last_lut[x] = 255 - y;
+						y += dy;
+					}
+				} else {
+					var y = lutLastY;
+					var dy = (newY - lutLastY) / (newX - lutLastX);
+					for(var x = lutLastX+1; x <= newX; x++) {
+						g_last_lut[x] = 255 - y;
+						y += dy;
+					}
+				}
+				refresh2(g_last_lut);
+			}
+			lutLastX = newX;
+			lutLastY = newY;
+		}
+	};
+
+	var histCanvas = document.getElementById("hist");
+	var histCtx = histCanvas.getContext("2d");
+	function renderHistogram(hist) {
+		histCtx.lineWidth = 1;
+		histCtx.fillStyle = "white";
+		histCtx.strokeStyle = "black";
+		histCtx.fillRect(0, 0, 256, 256);
+		var max = 0;
+		var total = 0;
+		for(var i = 0; i < hist.length; i++) {
+			max = Math.max(max, hist[i]);
+			total += hist[i];
+		}
+		var sum = 0;
+		for(var i = 0; i < hist.length; i++) {
+			sum += hist[i]/total;
+
+			histCtx.strokeStyle = "black";
+			histCtx.beginPath();
+			histCtx.moveTo(i, 255-Math.round(255*hist[i]/max));
+			histCtx.lineTo(i, 255);
+			histCtx.stroke();
+
+			histCtx.strokeStyle = "rgba(200, 200, 200, 0.5)";
+			histCtx.beginPath();
+			histCtx.moveTo(i, 255-Math.round(255*sum));
+			histCtx.lineTo(i, 255);
+			histCtx.stroke();
+		}
+	}
+	</script>
+
+	<script type="text/javascript">
+	var gammaSlider = document.getElementById("gamma");
+	var gammaDisplay = document.getElementById("gammaDisplay");
+	var minSlider = document.getElementById("min");
+	var minDisplay = document.getElementById("minDisplay");
+	var maxSlider = document.getElementById("max");
+	var maxDisplay = document.getElementById("maxDisplay");
+	gammaSlider.onchange = function() {
+		var l = parseFloat(gammaSlider.value) / 255;
+		var gamma = Math.log(0.5) / Math.log(l);
+		gammaDisplay.value = gamma;
+
+		g_gamma = gamma;
+		refresh();
+	};
+	gammaDisplay.onchange = function() {
+		g_gamma = parseFloat(gammaDisplay.value);
+		gammaSlider.value = Math.round(Math.pow(0.5, 1/g_gamma) * 255.0);
+		refresh();
+	};
+	minSlider.onchange = function() {
+		minDisplay.value = Math.round(minSlider.value);
+		g_min = minSlider.value / 255;
+		refresh();
+	};
+	maxSlider.onchange = function() {
+		maxDisplay.value = Math.round(maxSlider.value);
+		g_max = maxSlider.value / 255;
+		refresh();
+	};
+	document.getElementById("skinDetect").onclick = function() {
+		source = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		var dest = ctx.createImageData(source);
+		detectSkin(source, dest);
+		ctx.putImageData(dest, 0, 0);
+	};
+	document.getElementById("refresh").onclick = function() {
+		refresh();
+	};
+	document.getElementById("autoexposure").onclick = function() {
+		var histogram = calculateHistogram(originalImageData);
+		var histInfo = analyzeHistogram(histogram, 0.008);
+		reset();
+		g_min = histInfo.min;
+		g_max = histInfo.max;
+		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, histInfo.mean);
+		updateDisplay();
+		refresh();
+	};
+	document.getElementById("autolevel").onclick = function() {
+		var histogram = calculateHistogram(originalImageData);
+		var histInfo = analyzeHistogram(histogram, 0.008);
+		reset();
+		g_min = histInfo.min;
+		g_max = histInfo.max;
+		g_gamma = histInfo.gamma;
+		updateDisplay();
+		refresh();
+	};
+	document.getElementById("b1994").onclick = function() {
+		var histogram = calculateHistogram(originalImageData);
+		var histInfo = analyzeHistogram(histogram, 0.008);
+		// var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		console.time('b1994');
+		var mean = b1994(originalImageData, 4, 4, ctx);
+		console.timeEnd('b1994');
+		reset();
+		g_min = histInfo.min;
+		g_max = histInfo.max;
+		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0);
+		updateDisplay();
+		refresh();
+		if (document.getElementById("showSegments").checked)
+			b1994(originalImageData, 4, 4, ctx);
+	};
+	document.getElementById("showSegments").onchange = function() {
+		refresh();
+	};
+	var g_b2003Settings = {
+		"noiseThreshold": 0.24,
+		"alpha": 0.29,
+		"visualThreshold": 0.05
+	};
+	document.getElementById("b2003alphaSlider").onchange = function() {
+		g_b2003Settings.alpha = document.getElementById("b2003alphaSlider").value / 100.0;
+		document.getElementById("b2003alphaDisplay").value = g_b2003Settings.alpha;
+		document.getElementById("b2003").click();
+	};
+	document.getElementById("b2003noiseSlider").onchange = function() {
+		g_b2003Settings.noiseThreshold = document.getElementById("b2003noiseSlider").value / 100.0;
+		document.getElementById("b2003noiseDisplay").value = g_b2003Settings.noiseThreshold;
+		document.getElementById("b2003").click();
+	};
+	document.getElementById("b2003visualSlider").onchange = function() {
+		g_b2003Settings.visualThreshold = document.getElementById("b2003visualSlider").value / 100.0;
+		document.getElementById("b2003visualDisplay").value = g_b2003Settings.visualThreshold;
+		document.getElementById("b2003").click();
+	};
+	document.getElementById("b2003").onclick = function() {
+		var histogram = calculateHistogram(originalImageData);
+		var histInfo = analyzeHistogram(histogram, 0.008);
+
+		var lut = identityLUT();
+		applyStretchToLUT(lut, histInfo.min, histInfo.max);
+		// var exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, histInfo.mean);
+		// applyExposureAdjustmentToLUT(lut, exposure, 0.75, 1.0);
+		// applyGammaToLUT(lut, histInfo.gamma);
+		var dest = ctx.createImageData(originalImageData);
+		applyLUT1Dy(originalImageData, dest, lut);
+
+		// var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		console.time('b2003');
+		var mean = battiato2003(dest, 4, 4, g_b2003Settings, ctx);
+		console.timeEnd('b2003');
+		reset();
+		g_min = histInfo.min;
+		g_max = histInfo.max;
+		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0);
+		updateDisplay();
+		refresh();
+		if (document.getElementById("showSegments").checked)
+			battiato2003(dest, 8, 8, g_b2003Settings, ctx);
+	};
+	function reset() {
+		g_min = 0.0;
+		g_max = 1.0;
+		g_gamma = 1.0;
+		g_blurRadius = 0;
+		g_blurEPS = 2000;
+		g_exposure = 0;
+		g_exposureC = 0.75;
+		g_exposureA = 1.0;
+		g_scurve_s = 0;
+		g_scurve_h = 0;
+		g_equalize = false;
+		g_yscalergb = true;
+		updateDisplay();
+		refresh();
+	};
+	document.getElementById("reset").onclick = reset;
+
+	var blurRadius = document.getElementById("blurRadius");
+	var blurRadiusDisplay = document.getElementById("blurRadiusDisplay");
+	var blurEPS = document.getElementById("blurEPS");
+	var blurEPSDisplay = document.getElementById("blurEPSDisplay");
+	var g_blurRadius = 0;
+	var g_blurEPS = 2000;
+	blurRadius.onchange = function() {
+		g_blurRadius = Math.round(blurRadius.value);
+		blurRadiusDisplay.value = g_blurRadius;
+		refresh();
+	};
+	blurEPS.onchange = function() {
+		g_blurEPS = Math.round(blurEPS.value);
+		blurEPSDisplay.value = g_blurEPS;
+		refresh();
+	};
+
+	var exposureSlider = document.getElementById("exposureSlider");
+	var exposureDisplay = document.getElementById("exposureDisplay");
+	var exposureCSlider = document.getElementById("exposureCSlider");
+	var exposureCDisplay = document.getElementById("exposureCDisplay");
+	var exposureASlider = document.getElementById("exposureASlider");
+	var exposureADisplay = document.getElementById("exposureADisplay");
+	var g_exposure = 0;
+	var g_exposureC = 0.75;
+	var g_exposureA = 1;
+	exposureSlider.onchange = function() {
+		g_exposure = parseFloat(exposureSlider.value) / 10.0;
+		exposureDisplay.value = g_exposure;
+		refresh();
+	};
+	exposureCSlider.onchange = function() {
+		g_exposureC = parseFloat(exposureCSlider.value) / 100.0;
+		exposureCDisplay.value = g_exposureC;
+		refresh();
+	};
+	exposureASlider.onchange = function() {
+		g_exposureA = parseFloat(exposureASlider.value) / 100.0;
+		exposureADisplay.value = g_exposureA;
+		refresh();
+	};
+
+	var sCurveSSlider = document.getElementById("sCurveSSlider");
+	var sCurveSDisplay = document.getElementById("sCurveSDisplay");
+	var sCurveHSlider = document.getElementById("sCurveHSlider");
+	var sCurveHDisplay = document.getElementById("sCurveHDisplay");
+	var g_scurve_s = 0;
+	var g_scurve_h = 0;
+	sCurveSSlider.onchange = function() {
+		g_scurve_s = parseFloat(sCurveSSlider.value) / 40.0;
+		sCurveSDisplay.value = g_scurve_s;
+		refresh();
+	};
+	sCurveHSlider.onchange = function() {
+		g_scurve_h = parseFloat(sCurveHSlider.value) / 40.0;
+		sCurveHDisplay.value = g_scurve_h;
+		refresh();
+	};
+
+	var equalizeCheckbox = document.getElementById("equalize");
+	var g_equalize = false;
+	equalizeCheckbox.onchange = function() {
+		g_equalize = equalizeCheckbox.checked;
+		refresh();
+	};
+
+	var yscalergbCheckbox = document.getElementById("yscalergb");
+	var g_yscalergb = true;
+	yscalergbCheckbox.onchange = function() {
+		g_yscalergb = yscalergbCheckbox.checked;
+		refresh2();
+	};
+
+	function updateDisplay() {
+		gammaSlider.value = Math.round(Math.pow(0.5, 1/g_gamma) * 255.0);
+		gammaDisplay.value = g_gamma;
+		minSlider.value = Math.round(g_min * 255.0);
+		minDisplay.value = Math.round(g_min * 255.0);
+		maxSlider.value = Math.round(g_max * 255.0);
+		maxDisplay.value = Math.round(g_max * 255.0);
+		blurRadius.value = g_blurRadius;
+		blurRadiusDisplay.value = g_blurRadius;
+		blurEPS.value = g_blurEPS;
+		blurEPSDisplay.value = g_blurEPS;
+		exposureSlider.value = Math.round(g_exposure * 10);
+		exposureDisplay.value = g_exposure;
+		exposureCSlider.value = Math.round(g_exposureC * 100);
+		exposureCDisplay.value = g_exposureC;
+		exposureASlider.value = Math.round(g_exposureA * 100);
+		exposureADisplay.value = g_exposureA;
+		sCurveSSlider.value = Math.round(g_scurve_s * 40);
+		sCurveSDisplay.value = g_scurve_s;
+		sCurveHSlider.value = Math.round(g_scurve_h * 40);
+		sCurveHDisplay.value = g_scurve_h;
+		equalizeCheckbox.checked = g_equalize;
+		yscalergbCheckbox.checked = g_yscalergb;
+		document.getElementById("b2003alphaSlider").value = Math.round(g_b2003Settings.alpha * 100);
+		document.getElementById("b2003alphaDisplay").value = g_b2003Settings.alpha
+		document.getElementById("b2003noiseSlider").value = Math.round(g_b2003Settings.noiseThreshold * 100);
+		document.getElementById("b2003noiseDisplay").value = g_b2003Settings.noiseThreshold;
+		document.getElementById("b2003visualSlider").value = Math.round(g_b2003Settings.visualThreshold * 100);
+		document.getElementById("b2003visualDisplay").value = g_b2003Settings.visualThreshold;
+	}
+
+	var g_min = 0.0;
+	var g_max = 1.0;
+	var g_gamma = 1.0;
+
+	var canvas = document.getElementById("image");
+	var ctx = canvas.getContext("2d");
+	var img = new Image();
+	var originalImageData;
+	img.onload = function() {
+		var width = img.width;
+		var height = img.height;
+		var maxWidth = 640;
+		var maxHeight = 600;
+
+		if (width > height && width > maxWidth) {
+				height = height * maxWidth / width;
+				width = maxWidth;
+		} else if (height > maxHeight) {
+			width = width * maxHeight / height;
+			height = maxHeight;
+		}
+
+		canvas.width = width;
+		canvas.height = height;
+		ctx.imageSmoothingEnabled = true;
+		ctx.webkitImageSmoothingEnabled = true;
+		ctx.drawImage(img, 0, 0, width, height);
+		originalImageData = ctx.getImageData(0, 0, width, height);
+
+		reset();
+		refresh();
+	}
+
+	function refresh() {
+		var source = originalImageData;
+
+		var lut = identityLUT();
+		g_last_lut = lut;
+
+		if (g_equalize) {
+			var histogram = calculateHistogram(originalImageData);
+			applyHistogramEqualizationToLUT(lut, histogram);
+		}
+
+		if (g_min > 0 || g_max < 255 || g_gamma != 1.0) {
+			applyStretchToLUT(lut, g_min, g_max);
+			applyGammaToLUT(lut, g_gamma);
+		}
+
+		if (g_exposure != 0) {
+			applyExposureAdjustmentToLUT(lut, g_exposure, g_exposureC, g_exposureA);
+		}
+
+		if (g_scurve_s != 0 || g_scurve_h != 0) {
+			applySCurveToLUT(lut, g_scurve_s, g_scurve_h);
+		}
+
+		refresh2(lut);
+	}
+
+	function refresh2(lut, source) {
+		var dest = ctx.createImageData(originalImageData);
+
+		if (!lut) {
+			lut = g_last_lut;
+		}
+
+		if (!source) {
+			source = originalImageData;
+		}
+
+		renderLUT(lut);
+
+		console.time('applyLUT1D');
+		if (g_yscalergb) {
+			applyLUT1Dy(source, dest, lut);
+		} else {
+			applyLUT1D(source, dest, lut);
+		}
+		console.timeEnd('applyLUT1D');
+
+		if (g_blurRadius > 0) {
+			// console.time('rgbaImageToY');
+			// var yImg = rgbaImageToY(dest);
+			// console.timeEnd('rgbaImageToY');
+
+			console.time('guidedFilter');
+			guidedFilter(dest, dest, dest, g_blurRadius, g_blurEPS);
+			console.timeEnd('guidedFilter');
+		}
+
+		renderHistogram(calculateHistogram(dest));
+
+		ctx.putImageData(dest, 0, 0);
+	}
+
+	function globalLevelImage(source, dest, min, max, gamma) {
+		var lut = identityLUT();
+		applyStretchToLUT(lut, min, max);
+		applyGammaToLUT(lut, gamma);
+		applyLUT1D(source, dest, lut);
+	}
+
+	function applyStretchToLUT(lut, min, max) {
+		for(var i = 0; i < 256; i++) {
+			lut[i] = Math.round(255.0 * saturate(step(lut[i]/255.0, min, max)))
+		}
+	}
+
+	function applyGammaToLUT(lut, gamma) {
+		for(var i = 0; i < 256; i++) {
+			lut[i] = Math.round(255 * Math.pow(lut[i] / 255.0, gamma));
+		}
+	}
+
+	function applySCurveToLUT(lut, s, h) {
+		var k1 = 5;
+		var k2 = 14;
+		var k3 = 1.6;
+		for(var i = 0; i < 256; i++) {
+			var x = lut[i]/255.0;
+			var xs = s * k1 * x * Math.exp(-14 * x * Math.pow(x, 1.6));
+			var xh = h * k1 * (1-x) * Math.exp(-14 * (1-x) * Math.pow(1-x, 1.6));
+			lut[i] = Math.round(255 * saturate(x + xs + xh));
+		}
+	}
+
+	function exposure(c, a, x) {
+		return 1 / Math.pow(1 + Math.exp(-c*x), a);
+	}
+
+	function exposureInverse(c, a, p) {
+		return -Math.log(Math.pow(p, -1/a)-1) / c;
+	}
+
+	function applyExposureAdjustmentToLUT(lut, stops, c, a) {
+		for(var i = 0; i < 256; i++) {
+			lut[i] = Math.round(255 * saturate(exposure(c, a, exposureInverse(c, a, lut[i]/255.0)+stops)));
+		}
+	}
+
+	function applyHistogramEqualizationToLUT(lut, hist) {
+		var n = hist.length;
+
+		var cdf = new Array(n);
+		var sum = 0;
+		var min = 0;
+		for(var i = 0; i < n; i++) {
+			var l = hist[i];
+			if (min == 0) {
+				min = l;
+			}
+			sum += l;
+			cdf[i] = sum;
+		}
+
+		for(var i = 0; i < n; i++) {
+			lut[i] = Math.round((cdf[i]-min) / (sum-min) * (n-1));
+		}
+		return lut
+	}
+
+	function applyLUT1D(source, dest, lut) {
+		var n = source.data.length;
+		for(var i = 0; i < n; i += 4) {
+			dest.data[i] = lut[source.data[i]];
+			dest.data[i+1] = lut[source.data[i+1]];
+			dest.data[i+2] = lut[source.data[i+2]];
+			dest.data[i+3] = source.data[i+3];
+		}
+	}
+
+	function applyLUT1Dy(source, dest, lut) {
+		var n = source.data.length;
+		for(var i = 0; i < n; i += 4) {
+			var r = source.data[i];
+			var g = source.data[i+1];
+			var b = source.data[i+2];
+			var y = rgbToY(r, g, b);
+			var y2 = lut[y];
+			r = 0.5 * (y2/y * (r+y) + r-y);
+			g = 0.5 * (y2/y * (g+y) + g-y);
+			b = 0.5 * (y2/y * (b+y) + b-y);
+			dest.data[i] = r;
+			dest.data[i+1] = g;
+			dest.data[i+2] = b;
+			dest.data[i+3] = source.data[i+3];
+		}
+	}
+
+	var imageFile = document.getElementById("imageFile");
+	function loadImage() {
+		img.src = imageFile.value;
+	}
+	imageFile.onchange = loadImage;
+
+	loadImage();
+	</script>
+</body>
+</html>
