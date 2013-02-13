@@ -34,10 +34,15 @@
 
 		<input type="checkbox" id="equalize" value="false">
 		Histogram Equalization
-		<input type="checkbox" id="yscalergb" value="false">
-		Y scale RGB
 		<input type="checkbox" id="showSegments" value="false">
 		Show Segments<br>
+
+        RGB mapping:
+        <select id="rgbMapping">
+            <option value="independent" selected>Independent</option>
+            <option value="scaleY">Scale by Y</option>
+            <option value="applyToY">Apply to Y</option>
+        </select>
 
 		<input type="range" id="gamma" min="0" max="255" value="127">
 		<input type="text" id="gammaDisplay" value="1.0">
@@ -306,6 +311,7 @@
 		if (document.getElementById("showSegments").checked)
 			battiato2003(dest, 8, 8, g_b2003Settings, ctx);
 	};
+    var g_rgbMapping = "independent";
 	function reset() {
 		g_min = 0.0;
 		g_max = 1.0;
@@ -318,7 +324,7 @@
 		g_scurve_s = 0;
 		g_scurve_h = 0;
 		g_equalize = false;
-		g_yscalergb = true;
+        g_rgbMapping = "independent";
 		updateDisplay();
 		refresh();
 	};
@@ -390,10 +396,8 @@
 		refresh();
 	};
 
-	var yscalergbCheckbox = document.getElementById("yscalergb");
-	var g_yscalergb = true;
-	yscalergbCheckbox.onchange = function() {
-		g_yscalergb = yscalergbCheckbox.checked;
+	document.getElementById("rgbMapping") = function() {
+        g_rgbMapping = document.getElementById("rgbMapping").value;
 		refresh2();
 	};
 
@@ -419,7 +423,7 @@
 		sCurveHSlider.value = Math.round(g_scurve_h * 40);
 		sCurveHDisplay.value = g_scurve_h;
 		equalizeCheckbox.checked = g_equalize;
-		yscalergbCheckbox.checked = g_yscalergb;
+        document.getElementById("rgbMapping").value = g_rgbMapping;
 		document.getElementById("b2003alphaSlider").value = Math.round(g_b2003Settings.alpha * 100);
 		document.getElementById("b2003alphaDisplay").value = g_b2003Settings.alpha
 		document.getElementById("b2003noiseSlider").value = Math.round(g_b2003Settings.noiseThreshold * 100);
@@ -502,11 +506,13 @@
 		renderLUT(lut);
 
 		console.time('applyLUT1D');
-		if (g_yscalergb) {
-			applyLUT1Dy(source, dest, lut);
+        if (g_rgbMapping == "scaleY") {
+			applyLUT1DscaleY(source, dest, lut);
+        } else if (g_rgbMapping == "applyY") {
+            applyLUT1Dy(source, dest, lut);
 		} else {
 			applyLUT1D(source, dest, lut);
-		}
+        }
 		console.timeEnd('applyLUT1D');
 
 		if (g_blurRadius > 0) {
@@ -522,13 +528,6 @@
 		renderHistogram(calculateHistogram(dest));
 
 		ctx.putImageData(dest, 0, 0);
-	}
-
-	function globalLevelImage(source, dest, min, max, gamma) {
-		var lut = identityLUT();
-		applyStretchToLUT(lut, min, max);
-		applyGammaToLUT(lut, gamma);
-		applyLUT1D(source, dest, lut);
 	}
 
 	function applyStretchToLUT(lut, min, max) {
@@ -600,7 +599,7 @@
 		}
 	}
 
-	function applyLUT1Dy(source, dest, lut) {
+	function applyLUT1DscaleY(source, dest, lut) {
 		var n = source.data.length;
 		for(var i = 0; i < n; i += 4) {
 			var r = source.data[i];
@@ -614,6 +613,22 @@
 			dest.data[i] = r;
 			dest.data[i+1] = g;
 			dest.data[i+2] = b;
+			dest.data[i+3] = source.data[i+3];
+		}
+	}
+
+	function applyLUT1Dy(source, dest, lut) {
+		var n = source.data.length;
+		for(var i = 0; i < n; i += 4) {
+			var r = source.data[i];
+			var g = source.data[i+1];
+			var b = source.data[i+2];
+            var ycbcr = rgbToYCbCr(r, g, b);
+            ycbcr.y = lut[ycbcr.y];
+            var rgb = yCbCrToRGB(ycbcr.y, ycbcr.cb, ycbcr.cr);
+			dest.data[i] = rgb.r;
+			dest.data[i+1] = rgb.g;
+			dest.data[i+2] = rgb.b;
 			dest.data[i+3] = source.data[i+3];
 		}
 	}
