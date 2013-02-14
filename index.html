@@ -195,22 +195,19 @@
 
             var o = i*4;
             for(var y = 0; y < 256; y++) {
-                data.data[o] = 255;
-                data.data[o+1] = 255;
-                data.data[o+2] = 255;
-                data.data[o+3] = 255;
+                var l = 255;
 
                 if (y >= y1) {
-                    data.data[o] -= 128;
-                    data.data[o+1] -= 128;
-                    data.data[o+2] -= 128;
+                    l -= 128;
                 }
                 if (y >= y2) {
-                    data.data[o] -= 127;
-                    data.data[o+1] -= 127;
-                    data.data[o+2] -= 127;
+                    l -= 35;
                 }
 
+                data.data[o] = l;
+                data.data[o+1] = l;
+                data.data[o+2] = l;
+                data.data[o+3] = 255;
                 o += 256*4;
             }
 		}
