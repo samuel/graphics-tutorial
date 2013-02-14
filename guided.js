@@ -166,7 +166,7 @@ function guidedFilter(image, guide, dest, radius, eps) {
 			var bb = imageData[to+2];
 
 			var yy = rgbToY(rr, gg, bb);
-			var yy2 = Math.round((yy * a + b) / weight);
+			var yy2 = Math.max(0, Math.min(255, Math.round((yy * a + b) / weight)));
 			yy2 /= 255.0;
 			yy /= 255.0;
 			// destData[to] = yy2;
