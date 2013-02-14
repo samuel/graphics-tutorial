@@ -44,7 +44,7 @@
             <option value="applyY">Apply to Y</option>
 <!--            <option value="applyL">Apply to L</option>
             <option value="applyV">Apply to V</option> -->
-        </select>
+        </select><br>
 
 		<input type="range" id="gamma" min="0" max="255" value="127">
 		<input type="text" id="gammaDisplay" value="1.0">
@@ -98,7 +98,7 @@
 		<input type="text" id="b2003visualDisplay" value="0.1">
 		B2003 Visual Threshold<br>
 
-		<canvas id="lut" width="256" height="256" style="float:left;"></canvas>
+		<canvas id="lut" width="256" height="272" style="float:left;"></canvas>
 		<canvas id="hist" width="256" height="256"></canvas>
 	</div>
 
@@ -112,12 +112,26 @@
 		lutCtx.fillStyle = "white";
 		lutCtx.strokeStyle = "black";
 		lutCtx.fillRect(0, 0, 256, 256);
-		for(var i = 0; i < lut.length; i++) {
-			lutCtx.beginPath();
-			lutCtx.moveTo(i, 255-lut[i]);
-			lutCtx.lineTo(i, 255);
-			lutCtx.stroke();
-		}
+        var data = lutCtx.getImageData(0, 0, 256, 272);
+        for(var i = 0; i < lut.length; i++) {
+            var o = (i + (255-lut[i])*256)*4;
+            for(var y = 255-lut[i]; y < 255; y++) {
+                data.data[o] = 180;
+                data.data[o+1] = 180;
+                data.data[o+2] = 180;
+                data.data[o+3] = 255;
+                o += 256*4;
+            }
+            o = (i + 256*256)*4;
+            for(var y = 256; y < 256+16; y++) {
+                data.data[o] = lut[i];
+                data.data[o+1] = lut[i];
+                data.data[o+2] = lut[i];
+                data.data[o+3] = 255;
+                o += 256*4;
+            }
+        }
+        lutCtx.putImageData(data, 0, 0);
 	}
 
 	var lutMouseDown = false;
@@ -165,6 +179,7 @@
 		histCtx.fillStyle = "white";
 		histCtx.strokeStyle = "black";
 		histCtx.fillRect(0, 0, 256, 256);
+        var data = histCtx.getImageData(0, 0, 256, 256);
 		var max = 0;
 		var total = 0;
 		for(var i = 0; i < hist.length; i++) {
@@ -175,18 +190,31 @@
 		for(var i = 0; i < hist.length; i++) {
 			sum += hist[i]/total;
 
-			histCtx.strokeStyle = "black";
-			histCtx.beginPath();
-			histCtx.moveTo(i, 255-Math.round(255*hist[i]/max));
-			histCtx.lineTo(i, 255);
-			histCtx.stroke();
+            var y1 = 255-Math.round(255*hist[i]/max);
+            var y2 = 255-Math.round(255*sum);
 
-			histCtx.strokeStyle = "rgba(200, 200, 200, 0.5)";
-			histCtx.beginPath();
-			histCtx.moveTo(i, 255-Math.round(255*sum));
-			histCtx.lineTo(i, 255);
-			histCtx.stroke();
+            var o = i*4;
+            for(var y = 0; y < 256; y++) {
+                data.data[o] = 255;
+                data.data[o+1] = 255;
+                data.data[o+2] = 255;
+                data.data[o+3] = 255;
+
+                if (y >= y1) {
+                    data.data[o] -= 128;
+                    data.data[o+1] -= 128;
+                    data.data[o+2] -= 128;
+                }
+                if (y >= y2) {
+                    data.data[o] -= 127;
+                    data.data[o+1] -= 127;
+                    data.data[o+2] -= 127;
+                }
+
+                o += 256*4;
+            }
 		}
+        histCtx.putImageData(data, 0, 0);
 	}
 	</script>
 
