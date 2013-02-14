@@ -93,7 +93,14 @@ function battiato2003(imageData, segmentRows, segmentCols, settings, ctx) {
 		var focus = s.focus / maxFocus;
 		var contrast = s.contrast / maxContrast;
 		var significance = focus + (contrast-focus)*contrastFocusAlpha;
-		if (significance > visualThreshold) {
+		if (visualThreshold == 0.0) {
+			iSum += significance * s.mean;
+			iN += significance;
+			if (ctx) {
+				ctx.strokeStyle = "rgba(255, 0, 0, 0.4)";
+				ctx.strokeRect(s.x*segmentWidth, s.y*segmentHeight, segmentWidth, segmentHeight);
+			}
+		} else 	if (significance > visualThreshold) {
 			iSum += s.mean;
 			iN++;
 			if (ctx) {

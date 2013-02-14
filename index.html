@@ -229,9 +229,11 @@
 	document.getElementById("refresh").onclick = function() {
 		refresh();
 	};
+    var g_autominmax_pct = 0.006;
+    
 	document.getElementById("autoexposure").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
-		var histInfo = analyzeHistogram(histogram, 0.008);
+		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 		reset();
 		g_min = histInfo.min;
 		g_max = histInfo.max;
@@ -241,7 +243,7 @@
 	};
 	document.getElementById("autolevel").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
-		var histInfo = analyzeHistogram(histogram, 0.008);
+		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 		reset();
 		g_min = histInfo.min;
 		g_max = histInfo.max;
@@ -251,7 +253,7 @@
 	};
 	document.getElementById("b1994").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
-		var histInfo = analyzeHistogram(histogram, 0.008);
+		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 		// var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 		console.time('b1994');
 		var mean = b1994(originalImageData, 4, 4, ctx);
@@ -290,7 +292,7 @@
 	};
 	document.getElementById("b2003").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
-		var histInfo = analyzeHistogram(histogram, 0.008);
+		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 
 		var lut = identityLUT();
 		applyStretchToLUT(lut, histInfo.min, histInfo.max);
