@@ -115,7 +115,7 @@
         var data = lutCtx.getImageData(0, 0, 256, 272);
         for(var i = 0; i < lut.length; i++) {
             var o = (i + (255-lut[i])*256)*4;
-            for(var y = 255-lut[i]; y < 255; y++) {
+            for(var y = 255-lut[i]; y < 256; y++) {
                 data.data[o] = 180;
                 data.data[o+1] = 180;
                 data.data[o+2] = 180;
