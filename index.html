@@ -82,7 +82,7 @@
 		<input type="text" id="blurRadiusDisplay" value="0">
 		Guided Blur Radius<br>
 
-		<input type="range" id="blurEPS" min="1" max="30000" value="2000">
+		<input type="range" id="blurEPS" min="1" max="10000" value="2000">
 		<input type="text" id="blurEPSDisplay" value="2000">
 		Guided Blur EPS<br>
 
@@ -346,7 +346,7 @@
 		g_max = 1.0;
 		g_gamma = 1.0;
 		g_blurRadius = 0;
-		g_blurEPS = 2000;
+		g_blurEPS = 0.01;
 		g_exposure = 0;
 		g_exposureC = 0.75;
 		g_exposureA = 1.0;
@@ -371,7 +371,7 @@
 		refresh();
 	};
 	blurEPS.onchange = function() {
-		g_blurEPS = Math.round(blurEPS.value);
+		g_blurEPS = Math.round(blurEPS.value) / 20000.0;
 		blurEPSDisplay.value = g_blurEPS;
 		refresh();
 	};
@@ -439,7 +439,7 @@
 		maxDisplay.value = Math.round(g_max * 255.0);
 		blurRadius.value = g_blurRadius;
 		blurRadiusDisplay.value = g_blurRadius;
-		blurEPS.value = g_blurEPS;
+		blurEPS.value = Math.round(g_blurEPS * 20000.0);
 		blurEPSDisplay.value = g_blurEPS;
 		exposureSlider.value = Math.round(g_exposure * 10);
 		exposureDisplay.value = g_exposure;
