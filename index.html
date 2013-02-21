@@ -13,6 +13,7 @@
 	<script type="text/javascript" src="battiato2003.js"></script>
 	<script type="text/javascript" src="bhukhanwala1994.js"></script>
 	<script type="text/javascript" src="skindetection.js"></script>
+	<script type="text/javascript" src="noise.js"></script>
 </head>
 <body>
 	<div style="float:left;">
@@ -24,6 +25,7 @@
 	</div>
 
 	<div style="padding-left: 650px;">
+		<div id="controls">
 		<button id="reset">Reset</button>
 		<button id="refresh">Refresh</button>
 		<button id="autolevel">Auto Gamma</button>
@@ -69,34 +71,7 @@
 		<input type="range" id="exposureASlider" min="1" max="500" value="100">
 		<input type="text" id="exposureADisplay" value="1.0">
 		Exposure A<br>
-
-		<input type="range" id="sCurveSSlider" min="-20" max="20" value="0">
-		<input type="text" id="sCurveSDisplay" value="0">
-		S-Curve Shadows<br>
-
-		<input type="range" id="sCurveHSlider" min="-20" max="20" value="0">
-		<input type="text" id="sCurveHDisplay" value="0">
-		S-Curve Highlights<br>
-
-		<input type="range" id="blurRadius" min="0" max="40" value="0">
-		<input type="text" id="blurRadiusDisplay" value="0">
-		Guided Blur Radius<br>
-
-		<input type="range" id="blurEPS" min="1" max="10000" value="2000">
-		<input type="text" id="blurEPSDisplay" value="2000">
-		Guided Blur EPS<br>
-
-		<input type="range" id="b2003alphaSlider" min="0" max="100" value="40">
-		<input type="text" id="b2003alphaDisplay" value="0.4">
-		B2003 Alpha (Focus &lt;-&gt; Contrast)<br>
-
-		<input type="range" id="b2003noiseSlider" min="0" max="100" value="30">
-		<input type="text" id="b2003noiseDisplay" value="0.3">
-		B2003 Noise Threshold<br>
-
-		<input type="range" id="b2003visualSlider" min="0" max="100" value="10">
-		<input type="text" id="b2003visualDisplay" value="0.1">
-		B2003 Visual Threshold<br>
+		</div>
 
 		<canvas id="lut" width="256" height="272" style="float:left;"></canvas>
 		<canvas id="hist" width="256" height="256"></canvas>
@@ -104,6 +79,86 @@
 
 	<script type="text/javascript">
 	var g_last_lut = identityLUT();
+
+	var controlsDiv = document.getElementById("controls");
+	function Slider(name, label, scale, min, max, def) {
+		var input = document.createElement("input");
+		input.type = "range";
+		input.id = name + "Slider";
+		input.min = Math.round(min * scale);
+		input.max = Math.round(max * scale);
+		input.value = Math.round(def * scale);
+		controlsDiv.appendChild(input);
+
+		controlsDiv.appendChild(document.createTextNode(" "));
+
+		var display = document.createElement("input");
+		display.type = "text";
+		display.id = name + "Display";
+		display.value = def;
+		controlsDiv.appendChild(display);
+
+		controlsDiv.appendChild(document.createTextNode(" " + label));
+		controlsDiv.appendChild(document.createElement("br"));
+
+		this.value = def;
+
+		var self = this;
+		input.onchange = function() {
+			self.value = parseInt(input.value) / scale;
+			display.value = self.value;
+			self.onchange();
+		};
+		display.onchange = function() {
+			self.value = Math.min(max, Math.max(min, parseFloat(display.value)));
+			display.value = self.value;
+			input.value = self.value * scale;
+			self.onchange();
+		};
+
+		this.reset = function() {
+			self.value = def;
+			display.value = self.value;
+			input.value = self.value * scale;
+		};
+
+		// Overrides
+		this.onchange = function() {}
+
+		return this;
+	}
+
+	var resets = [];
+
+	var sCurveS = new Slider("sCurveS", "S-Curve Shadows", 40, -0.5, 0.5, 0);
+	resets.push(sCurveS);
+	var sCurveH = new Slider("sCurveH", "S-Curve Highlights", 40, -0.5, 0.5, 0);
+	resets.push(sCurveH);
+
+	var guidedBlurRadius = new Slider("guidedBlurRadius", "Guided Blur Radius", 1, 0, 40, 0);
+	resets.push(guidedBlurRadius);
+	var guidedBlurEPS = new Slider("guidedBlurEPS", "Guided Blur EPS", 1000, 0, 0.1, 0.01);
+	resets.push(guidedBlurEPS);
+
+	var b2003alpha = new Slider("b2003alpha", "B2003 Alpha (Focus &lt;-&gt; Contrast)", 100, 0, 1, 0.31);
+	b2003alpha.onchange = function() { document.getElementById("b2003").click(); };
+	var b2003noise = new Slider("b2003noise", "B2003 Noise Threshold", 100, 0, 1, 0.33);
+	b2003noise.onchange = function() { document.getElementById("b2003").click(); };
+	var b2003visual = new Slider("b2003visual", "B2003 Visual Threshold", 100, 0, 1, 0.38);
+	b2003visual.onchange = function() { document.getElementById("b2003").click(); };
+
+	var gaussNoiseMult = new Slider("gaussNoiseMult", "Gaussian Noise Multiplier", 100, 0, 2, 0);
+	resets.push(gaussNoiseMult);
+	var gaussNoiseAlpha = new Slider("gaussNoiseAlpha", "Gaussian Noise Alpha", 100, 0, 1, 1);
+	resets.push(gaussNoiseAlpha);
+	var uniformNoiseMult = new Slider("uniformNoiseMult", "Uniform Noise Multiplier", 100, 0, 2, 0);
+	resets.push(uniformNoiseMult);
+	var uniformNoiseAlpha = new Slider("uniformNoiseAlpha", "Uniform Noise Alpha", 100, 0, 1, 1);
+	resets.push(uniformNoiseAlpha);
+
+	for(var i = 0; i < resets.length; i++) {
+		resets[i].onchange = function() { refresh(); };
+	}
 
 	var lutCanvas = document.getElementById("lut");
 	var lutCtx = lutCanvas.getContext("2d");
@@ -255,7 +310,7 @@
 		refresh();
 	};
     var g_autominmax_pct = 0.006;
-    
+
 	document.getElementById("autoexposure").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
 		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
@@ -295,26 +350,6 @@
 	document.getElementById("showSegments").onchange = function() {
 		refresh();
 	};
-	var g_b2003Settings = {
-		"noiseThreshold": 0.33,
-		"alpha": 0.31,
-		"visualThreshold": 0.38
-	};
-	document.getElementById("b2003alphaSlider").onchange = function() {
-		g_b2003Settings.alpha = document.getElementById("b2003alphaSlider").value / 100.0;
-		document.getElementById("b2003alphaDisplay").value = g_b2003Settings.alpha;
-		document.getElementById("b2003").click();
-	};
-	document.getElementById("b2003noiseSlider").onchange = function() {
-		g_b2003Settings.noiseThreshold = document.getElementById("b2003noiseSlider").value / 100.0;
-		document.getElementById("b2003noiseDisplay").value = g_b2003Settings.noiseThreshold;
-		document.getElementById("b2003").click();
-	};
-	document.getElementById("b2003visualSlider").onchange = function() {
-		g_b2003Settings.visualThreshold = document.getElementById("b2003visualSlider").value / 100.0;
-		document.getElementById("b2003visualDisplay").value = g_b2003Settings.visualThreshold;
-		document.getElementById("b2003").click();
-	};
 	document.getElementById("b2003").onclick = function() {
 		var histogram = calculateHistogram(originalImageData);
 		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
@@ -328,8 +363,9 @@
 		applyLUT1Dy(originalImageData, dest, lut);
 
 		// var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		var settings = {"visualThreshold": b2003visual.value, "alpha": b2003alpha.value, "noiseThreshold": b2003noise.value};
 		console.time('b2003');
-		var mean = battiato2003(dest, 8, 8, g_b2003Settings, ctx);
+		var mean = battiato2003(dest, 8, 8, settings, ctx);
 		console.timeEnd('b2003');
 		reset();
 		g_min = histInfo.min;
@@ -338,43 +374,25 @@
 		updateDisplay();
 		refresh();
 		if (document.getElementById("showSegments").checked)
-			battiato2003(dest, 8, 8, g_b2003Settings, ctx);
+			battiato2003(dest, 8, 8, settings, ctx);
 	};
     var g_rgbMapping = "scaleY";
 	function reset() {
 		g_min = 0.0;
 		g_max = 1.0;
 		g_gamma = 1.0;
-		g_blurRadius = 0;
-		g_blurEPS = 0.01;
 		g_exposure = 0;
 		g_exposureC = 0.75;
 		g_exposureA = 1.0;
-		g_scurve_s = 0;
-		g_scurve_h = 0;
 		g_equalize = false;
         g_rgbMapping = "scaleY";
+        for(var i = 0; i < resets.length; i++) {
+        	resets[i].reset();
+        }
 		updateDisplay();
 		refresh();
 	};
 	document.getElementById("reset").onclick = reset;
-
-	var blurRadius = document.getElementById("blurRadius");
-	var blurRadiusDisplay = document.getElementById("blurRadiusDisplay");
-	var blurEPS = document.getElementById("blurEPS");
-	var blurEPSDisplay = document.getElementById("blurEPSDisplay");
-	var g_blurRadius = 0;
-	var g_blurEPS = 2000;
-	blurRadius.onchange = function() {
-		g_blurRadius = Math.round(blurRadius.value);
-		blurRadiusDisplay.value = g_blurRadius;
-		refresh();
-	};
-	blurEPS.onchange = function() {
-		g_blurEPS = Math.round(blurEPS.value) / 20000.0;
-		blurEPSDisplay.value = g_blurEPS;
-		refresh();
-	};
 
 	var exposureSlider = document.getElementById("exposureSlider");
 	var exposureDisplay = document.getElementById("exposureDisplay");
@@ -401,23 +419,6 @@
 		refresh();
 	};
 
-	var sCurveSSlider = document.getElementById("sCurveSSlider");
-	var sCurveSDisplay = document.getElementById("sCurveSDisplay");
-	var sCurveHSlider = document.getElementById("sCurveHSlider");
-	var sCurveHDisplay = document.getElementById("sCurveHDisplay");
-	var g_scurve_s = 0;
-	var g_scurve_h = 0;
-	sCurveSSlider.onchange = function() {
-		g_scurve_s = parseFloat(sCurveSSlider.value) / 40.0;
-		sCurveSDisplay.value = g_scurve_s;
-		refresh();
-	};
-	sCurveHSlider.onchange = function() {
-		g_scurve_h = parseFloat(sCurveHSlider.value) / 40.0;
-		sCurveHDisplay.value = g_scurve_h;
-		refresh();
-	};
-
 	var equalizeCheckbox = document.getElementById("equalize");
 	var g_equalize = false;
 	equalizeCheckbox.onchange = function() {
@@ -437,28 +438,14 @@
 		minDisplay.value = Math.round(g_min * 255.0);
 		maxSlider.value = Math.round(g_max * 255.0);
 		maxDisplay.value = Math.round(g_max * 255.0);
-		blurRadius.value = g_blurRadius;
-		blurRadiusDisplay.value = g_blurRadius;
-		blurEPS.value = Math.round(g_blurEPS * 20000.0);
-		blurEPSDisplay.value = g_blurEPS;
 		exposureSlider.value = Math.round(g_exposure * 10);
 		exposureDisplay.value = g_exposure;
 		exposureCSlider.value = Math.round(g_exposureC * 100);
 		exposureCDisplay.value = g_exposureC;
 		exposureASlider.value = Math.round(g_exposureA * 100);
 		exposureADisplay.value = g_exposureA;
-		sCurveSSlider.value = Math.round(g_scurve_s * 40);
-		sCurveSDisplay.value = g_scurve_s;
-		sCurveHSlider.value = Math.round(g_scurve_h * 40);
-		sCurveHDisplay.value = g_scurve_h;
 		equalizeCheckbox.checked = g_equalize;
         document.getElementById("rgbMapping").value = g_rgbMapping;
-		document.getElementById("b2003alphaSlider").value = Math.round(g_b2003Settings.alpha * 100);
-		document.getElementById("b2003alphaDisplay").value = g_b2003Settings.alpha
-		document.getElementById("b2003noiseSlider").value = Math.round(g_b2003Settings.noiseThreshold * 100);
-		document.getElementById("b2003noiseDisplay").value = g_b2003Settings.noiseThreshold;
-		document.getElementById("b2003visualSlider").value = Math.round(g_b2003Settings.visualThreshold * 100);
-		document.getElementById("b2003visualDisplay").value = g_b2003Settings.visualThreshold;
 	}
 
 	var g_min = 0.0;
@@ -514,8 +501,8 @@
 			applyExposureAdjustmentToLUT(lut, g_exposure, g_exposureC, g_exposureA);
 		}
 
-		if (g_scurve_s != 0 || g_scurve_h != 0) {
-			applySCurveToLUT(lut, g_scurve_s, g_scurve_h);
+		if (sCurveS.value != 0 || sCurveH.value != 0) {
+			applySCurveToLUT(lut, sCurveS.value, sCurveH.value);
 		}
 
 		refresh2(lut);
@@ -544,13 +531,21 @@
         }
 		console.timeEnd('applyLUT1D');
 
-		if (g_blurRadius > 0) {
+		if (gaussNoiseAlpha.value > 0 && gaussNoiseMult.value > 0) {
+			gaussNoise(dest, gaussNoiseMult.value, gaussNoiseAlpha.value);
+		}
+
+		if (uniformNoiseAlpha.value > 0 && uniformNoiseMult.value > 0) {
+			uniformNoise(dest, uniformNoiseMult.value, uniformNoiseAlpha.value);
+		}
+
+		if (guidedBlurRadius.value > 0 && guidedBlurEPS.value > 0) {
 			// console.time('rgbaImageToY');
 			// var yImg = rgbaImageToY(dest);
 			// console.timeEnd('rgbaImageToY');
 
 			console.time('guidedFilter');
-			guidedFilter(dest, dest, dest, g_blurRadius, g_blurEPS);
+			guidedFilter(dest, dest, dest, guidedBlurRadius.value, guidedBlurEPS.value);
 			console.timeEnd('guidedFilter');
 		}
 

@@ -26,6 +26,10 @@ function step(v, a, b) {
 	return (v - a) / (b - a);
 }
 
+function lerp(a, b, alpha) {
+	return a + (b - a) * alpha;
+}
+
 function rgbToLuminance(r, g, b) {
 	return Math.round((Math.max(r, g, b) + Math.min(r, g, b)) / 2);
 }
