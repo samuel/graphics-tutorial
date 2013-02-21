@@ -26,51 +26,31 @@
 
 	<div style="padding-left: 650px;">
 		<div id="controls">
-		<button id="reset">Reset</button>
-		<button id="refresh">Refresh</button>
-		<button id="autolevel">Auto Gamma</button>
-		<button id="autoexposure">Auto Exposure</button>
-		<button id="b1994">B1994</button>
-		<button id="b2003">B2003</button>
-		<button id="skinDetect">Skin</button><br>
+			<button id="reset">Reset</button>
+			<button id="refresh">Refresh</button>
+			<button id="autolevel">Auto Gamma</button>
+			<button id="autoexposure">Auto Exposure</button>
+			<button id="b1994">B1994</button>
+			<button id="b2003">B2003</button>
+			<button id="skinDetect">Skin</button><br>
 
-		<input type="checkbox" id="equalize" value="false">
-		Histogram Equalization
-		<input type="checkbox" id="showSegments" value="false">
-		Show Segments<br>
+			<input type="checkbox" id="equalize" value="false">
+			Histogram Equalization
+			<input type="checkbox" id="showSegments" value="false">
+			Show Segments<br>
 
-        RGB mapping:
-        <select id="rgbMapping">
-            <option value="independent">Independent</option>
-            <option value="scaleY" selected>Scale by Y</option>
-            <option value="applyY">Apply to Y</option>
-<!--            <option value="applyL">Apply to L</option>
-            <option value="applyV">Apply to V</option> -->
-        </select><br>
+	        RGB mapping:
+	        <select id="rgbMapping">
+	            <option value="independent">Independent</option>
+	            <option value="scaleY" selected>Scale by Y</option>
+	            <option value="applyY">Apply to Y</option>
+	<!--            <option value="applyL">Apply to L</option>
+	            <option value="applyV">Apply to V</option> -->
+	        </select><br>
 
-		<input type="range" id="gamma" min="0" max="255" value="127">
-		<input type="text" id="gammaDisplay" value="1.0">
-		Gamma<br>
-
-		<input type="range" id="min" min="0" max="255" value="0">
-		<input type="text" id="minDisplay" value="0">
-		Min<br>
-
-		<input type="range" id="max" min="0" max="255" value="255">
-		<input type="text" id="maxDisplay" value="255">
-		Max<br>
-
-		<input type="range" id="exposureSlider" min="-80" max="80" value="0">
-		<input type="text" id="exposureDisplay" value="0">
-		Exposure<br>
-
-		<input type="range" id="exposureCSlider" min="1" max="300" value="75">
-		<input type="text" id="exposureCDisplay" value="0.75">
-		Exposure C<br>
-
-		<input type="range" id="exposureASlider" min="1" max="500" value="100">
-		<input type="text" id="exposureADisplay" value="1.0">
-		Exposure A<br>
+			<input type="range" id="gamma" min="0" max="255" value="127">
+			<input type="text" id="gammaDisplay" value="1.0">
+			Gamma<br>
 		</div>
 
 		<canvas id="lut" width="256" height="272" style="float:left;"></canvas>
@@ -105,30 +85,52 @@
 
 		var self = this;
 		input.onchange = function() {
-			self.value = parseInt(input.value) / scale;
-			display.value = self.value;
+			self.set(parseInt(input.value) / scale);
 			self.onchange();
 		};
 		display.onchange = function() {
-			self.value = Math.min(max, Math.max(min, parseFloat(display.value)));
-			display.value = self.value;
-			input.value = self.value * scale;
+			self.set(self.inverseTransform(parseFloat(display.value)));
 			self.onchange();
 		};
 
+		this.updateDisplay = function() {
+			display.value = self.transform(self.value);
+			input.value = self.value * scale;
+		};
 		this.reset = function() {
 			self.value = def;
-			display.value = self.value;
-			input.value = self.value * scale;
+			self.updateDisplay();
+		};
+		this.set = function(value) {
+			self.value = Math.min(max, Math.max(min, value));
+			self.updateDisplay();
 		};
 
 		// Overrides
-		this.onchange = function() {}
+		this.onchange = function() {};
+		this.transform = function(v) { return v; };
+		this.inverseTransform = function(v) { return v; };
 
 		return this;
 	}
 
 	var resets = [];
+
+	var minHist = new Slider("minHist", "Min", 255, 0, 1, 0);
+	minHist.transform = function(v) { return Math.round(v*255); };
+	minHist.inverseTransform = function(v) { return v / 255.0; };
+	resets.push(minHist);
+	var maxHist = new Slider("maxHist", "Max", 255, 0, 1, 1);
+	maxHist.transform = function(v) { return Math.round(v*255); };
+	maxHist.inverseTransform = function(v) { return v / 255.0; };
+	resets.push(maxHist);
+
+	var exposureStops = new Slider("exposureStops", "Exposure", 10, -8, 8, 0);
+	resets.push(exposureStops);
+	var exposureC = new Slider("exposureC", "Exposure C", 100, 0.01, 3, 0.75);
+	resets.push(exposureC);
+	var exposureA = new Slider("exposureA", "Exposure A", 100, 0.01, 5, 1);
+	resets.push(exposureA);
 
 	var sCurveS = new Slider("sCurveS", "S-Curve Shadows", 40, -0.5, 0.5, 0);
 	resets.push(sCurveS);
@@ -140,7 +142,7 @@
 	var guidedBlurEPS = new Slider("guidedBlurEPS", "Guided Blur EPS", 1000, 0, 0.1, 0.01);
 	resets.push(guidedBlurEPS);
 
-	var b2003alpha = new Slider("b2003alpha", "B2003 Alpha (Focus &lt;-&gt; Contrast)", 100, 0, 1, 0.31);
+	var b2003alpha = new Slider("b2003alpha", "B2003 Alpha (Focus <-> Contrast)", 100, 0, 1, 0.31);
 	b2003alpha.onchange = function() { document.getElementById("b2003").click(); };
 	var b2003noise = new Slider("b2003noise", "B2003 Noise Threshold", 100, 0, 1, 0.33);
 	b2003noise.onchange = function() { document.getElementById("b2003").click(); };
@@ -273,10 +275,6 @@
 	<script type="text/javascript">
 	var gammaSlider = document.getElementById("gamma");
 	var gammaDisplay = document.getElementById("gammaDisplay");
-	var minSlider = document.getElementById("min");
-	var minDisplay = document.getElementById("minDisplay");
-	var maxSlider = document.getElementById("max");
-	var maxDisplay = document.getElementById("maxDisplay");
 	gammaSlider.onchange = function() {
 		var l = parseFloat(gammaSlider.value) / 255;
 		var gamma = Math.log(0.5) / Math.log(l);
@@ -288,16 +286,6 @@
 	gammaDisplay.onchange = function() {
 		g_gamma = parseFloat(gammaDisplay.value);
 		gammaSlider.value = Math.round(Math.pow(0.5, 1/g_gamma) * 255.0);
-		refresh();
-	};
-	minSlider.onchange = function() {
-		minDisplay.value = Math.round(minSlider.value);
-		g_min = minSlider.value / 255;
-		refresh();
-	};
-	maxSlider.onchange = function() {
-		maxDisplay.value = Math.round(maxSlider.value);
-		g_max = maxSlider.value / 255;
 		refresh();
 	};
 	document.getElementById("skinDetect").onclick = function() {
@@ -315,9 +303,9 @@
 		var histogram = calculateHistogram(originalImageData);
 		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 		reset();
-		g_min = histInfo.min;
-		g_max = histInfo.max;
-		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, histInfo.mean);
+		minHist.set(histInfo.min);
+		maxHist.set(histInfo.max);
+		exposureStops.set(exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, histInfo.mean));
 		updateDisplay();
 		refresh();
 	};
@@ -325,8 +313,8 @@
 		var histogram = calculateHistogram(originalImageData);
 		var histInfo = analyzeHistogram(histogram, g_autominmax_pct);
 		reset();
-		g_min = histInfo.min;
-		g_max = histInfo.max;
+		minHist.set(histInfo.min);
+		maxHist.set(histInfo.max);
 		g_gamma = histInfo.gamma;
 		updateDisplay();
 		refresh();
@@ -339,9 +327,9 @@
 		var mean = b1994(originalImageData, 4, 4, ctx);
 		console.timeEnd('b1994');
 		reset();
-		g_min = histInfo.min;
-		g_max = histInfo.max;
-		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0);
+		minHist.set(histInfo.min);
+		maxHist.set(histInfo.max);
+		exposureStops.set(exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0));
 		updateDisplay();
 		refresh();
 		if (document.getElementById("showSegments").checked)
@@ -368,9 +356,9 @@
 		var mean = battiato2003(dest, 8, 8, settings, ctx);
 		console.timeEnd('b2003');
 		reset();
-		g_min = histInfo.min;
-		g_max = histInfo.max;
-		g_exposure = exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0);
+		minHist.set(histInfo.min);
+		maxHist.set(histInfo.max);
+		exposureStops.set(exposureInverse(0.75, 1.0, 0.5) - exposureInverse(0.75, 1.0, mean / 255.0));
 		updateDisplay();
 		refresh();
 		if (document.getElementById("showSegments").checked)
@@ -378,12 +366,7 @@
 	};
     var g_rgbMapping = "scaleY";
 	function reset() {
-		g_min = 0.0;
-		g_max = 1.0;
 		g_gamma = 1.0;
-		g_exposure = 0;
-		g_exposureC = 0.75;
-		g_exposureA = 1.0;
 		g_equalize = false;
         g_rgbMapping = "scaleY";
         for(var i = 0; i < resets.length; i++) {
@@ -393,31 +376,6 @@
 		refresh();
 	};
 	document.getElementById("reset").onclick = reset;
-
-	var exposureSlider = document.getElementById("exposureSlider");
-	var exposureDisplay = document.getElementById("exposureDisplay");
-	var exposureCSlider = document.getElementById("exposureCSlider");
-	var exposureCDisplay = document.getElementById("exposureCDisplay");
-	var exposureASlider = document.getElementById("exposureASlider");
-	var exposureADisplay = document.getElementById("exposureADisplay");
-	var g_exposure = 0;
-	var g_exposureC = 0.75;
-	var g_exposureA = 1;
-	exposureSlider.onchange = function() {
-		g_exposure = parseFloat(exposureSlider.value) / 10.0;
-		exposureDisplay.value = g_exposure;
-		refresh();
-	};
-	exposureCSlider.onchange = function() {
-		g_exposureC = parseFloat(exposureCSlider.value) / 100.0;
-		exposureCDisplay.value = g_exposureC;
-		refresh();
-	};
-	exposureASlider.onchange = function() {
-		g_exposureA = parseFloat(exposureASlider.value) / 100.0;
-		exposureADisplay.value = g_exposureA;
-		refresh();
-	};
 
 	var equalizeCheckbox = document.getElementById("equalize");
 	var g_equalize = false;
@@ -434,22 +392,10 @@
 	function updateDisplay() {
 		gammaSlider.value = Math.round(Math.pow(0.5, 1/g_gamma) * 255.0);
 		gammaDisplay.value = g_gamma;
-		minSlider.value = Math.round(g_min * 255.0);
-		minDisplay.value = Math.round(g_min * 255.0);
-		maxSlider.value = Math.round(g_max * 255.0);
-		maxDisplay.value = Math.round(g_max * 255.0);
-		exposureSlider.value = Math.round(g_exposure * 10);
-		exposureDisplay.value = g_exposure;
-		exposureCSlider.value = Math.round(g_exposureC * 100);
-		exposureCDisplay.value = g_exposureC;
-		exposureASlider.value = Math.round(g_exposureA * 100);
-		exposureADisplay.value = g_exposureA;
 		equalizeCheckbox.checked = g_equalize;
         document.getElementById("rgbMapping").value = g_rgbMapping;
 	}
 
-	var g_min = 0.0;
-	var g_max = 1.0;
 	var g_gamma = 1.0;
 
 	var canvas = document.getElementById("image");
@@ -492,13 +438,13 @@
 			applyHistogramEqualizationToLUT(lut, histogram);
 		}
 
-		if (g_min > 0 || g_max < 255 || g_gamma != 1.0) {
-			applyStretchToLUT(lut, g_min, g_max);
+		if (minHist.value > 0 || minHist.value < 255 || g_gamma != 1.0) {
+			applyStretchToLUT(lut, minHist.value, maxHist.value);
 			applyGammaToLUT(lut, g_gamma);
 		}
 
-		if (g_exposure != 0) {
-			applyExposureAdjustmentToLUT(lut, g_exposure, g_exposureC, g_exposureA);
+		if (exposureStops.value != 0) {
+			applyExposureAdjustmentToLUT(lut, exposureStops.value, exposureC.value, exposureA.value);
 		}
 
 		if (sCurveS.value != 0 || sCurveH.value != 0) {
