@@ -14,6 +14,7 @@
 	<script type="text/javascript" src="bhukhanwala1994.js"></script>
 	<script type="text/javascript" src="skindetection.js"></script>
 	<script type="text/javascript" src="noise.js"></script>
+	<script type="text/javascript" src="thresholding.js"></script>
 </head>
 <body>
 	<div style="float:left;">
@@ -46,6 +47,13 @@
 	            <option value="applyY">Apply to Y</option>
 	<!--            <option value="applyL">Apply to L</option>
 	            <option value="applyV">Apply to V</option> -->
+	        </select><br>
+
+	        Thresholding:
+	        <select id="thresholding">
+	            <option value="none" selected>None</option>
+	            <option value="otsu">Otsu</option>
+	            <option value="sauvola">Sauvola/Shafait</option>
 	        </select><br>
 
 			<input type="range" id="gamma" min="0" max="255" value="127">
@@ -161,6 +169,13 @@
 	for(var i = 0; i < resets.length; i++) {
 		resets[i].onchange = function() { refresh(); };
 	}
+
+	var sauvolaK = new Slider("sauvolaK", "Sauvola K", 100, 0, 1, 0.3);
+	sauvolaK.onchange = function() { refresh2(); };
+	resets.push(sauvolaK);
+	var sauvolaW = new Slider("sauvolaW", "Sauvola Window Size", 1, 3, 50, 15);
+	sauvolaW.onchange = function() { refresh2(); };
+	resets.push(sauvolaW);
 
 	var lutCanvas = document.getElementById("lut");
 	var lutCtx = lutCanvas.getContext("2d");
@@ -364,11 +379,11 @@
 		if (document.getElementById("showSegments").checked)
 			battiato2003(dest, 8, 8, settings, ctx);
 	};
-    var g_rgbMapping = "scaleY";
 	function reset() {
 		g_gamma = 1.0;
 		g_equalize = false;
         g_rgbMapping = "scaleY";
+        // g_thresholding = "none";
         for(var i = 0; i < resets.length; i++) {
         	resets[i].reset();
         }
@@ -384,8 +399,15 @@
 		refresh();
 	};
 
+    var g_rgbMapping = "scaleY";
 	document.getElementById("rgbMapping").onchange = function() {
         g_rgbMapping = document.getElementById("rgbMapping").value;
+		refresh2();
+	};
+
+	var g_thresholding = "none";
+	document.getElementById("thresholding").onchange = function() {
+		g_thresholding = document.getElementById("thresholding").value;
 		refresh2();
 	};
 
@@ -394,6 +416,7 @@
 		gammaDisplay.value = g_gamma;
 		equalizeCheckbox.checked = g_equalize;
         document.getElementById("rgbMapping").value = g_rgbMapping;
+        document.getElementById("thresholding").value = g_thresholding;
 	}
 
 	var g_gamma = 1.0;
@@ -495,7 +518,18 @@
 			console.timeEnd('guidedFilter');
 		}
 
-		renderHistogram(calculateHistogram(dest));
+		var hist = calculateHistogram(dest);
+		renderHistogram(hist);
+
+		if (g_thresholding != "none") {
+			var t = 127;
+			if (g_thresholding == "otsu") {
+				t = otsu(hist);
+				thresholdImage(dest, t);
+			} else if (g_thresholding == "sauvola") {
+				sauvolaThresholdingImage(dest, sauvolaK.value, sauvolaW.value);
+			}
+		}
 
 		ctx.putImageData(dest, 0, 0);
 	}

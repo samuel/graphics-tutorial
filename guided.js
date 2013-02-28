@@ -11,7 +11,6 @@ function guidedFilter(image, guide, dest, radius, eps) {
 	var destData = dest.data;
 
 	var temp = new Array();
-	guidedFilter_temp = temp;
 	var so = 0;
 	var to = 0;
 	var sumI, sumP, sumIP, sumII;
