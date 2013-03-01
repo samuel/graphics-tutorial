@@ -15,6 +15,7 @@
 	<script type="text/javascript" src="skindetection.js"></script>
 	<script type="text/javascript" src="noise.js"></script>
 	<script type="text/javascript" src="thresholding.js"></script>
+	<script type="text/javascript" src="gaussian.js"></script>
 </head>
 <body>
 	<div style="float:left;">
@@ -48,7 +49,7 @@
 	            <option value="applyY">Apply to Y</option>
 	<!--            <option value="applyL">Apply to L</option>
 	            <option value="applyV">Apply to V</option> -->
-	        </select><br>
+	        </select>
 
 	        Thresholding:
 	        <select id="thresholding">
@@ -150,6 +151,11 @@
 	resets.push(guidedBlurRadius);
 	var guidedBlurEPS = new Slider("guidedBlurEPS", "Guided Blur EPS", 1000, 0, 0.1, 0.01);
 	resets.push(guidedBlurEPS);
+
+	var gaussianBlurRadius = new Slider("gaussianBlurRadius", "Gaussian Blur Radius", 1, 1, 30, 3);
+	resets.push(gaussianBlurRadius);
+	var gaussianBlurStdDev = new Slider("gaussianBlurStdDev", "Gaussian Blur StdDev", 1000, 0, 10, 0);
+	resets.push(gaussianBlurStdDev);
 
 	var b2003alpha = new Slider("b2003alpha", "B2003 Alpha (Focus <-> Contrast)", 100, 0, 1, 0.31);
 	b2003alpha.onchange = function() { document.getElementById("b2003").click(); };
@@ -517,6 +523,13 @@
 			console.time('guidedFilter');
 			guidedFilter(dest, dest, dest, guidedBlurRadius.value, guidedBlurEPS.value);
 			console.timeEnd('guidedFilter');
+		}
+
+		if (gaussianBlurStdDev.value > 0 && gaussianBlurRadius.value > 0) {
+			console.time('gaussianBlur');
+			var kernel = gen_gaussian_1d(gaussianBlurStdDev.value, gaussianBlurRadius.value);
+			apply_kernel_rgba_separable(dest, dest, kernel);
+			console.timeEnd('gaussianBlur');
 		}
 
 		var hist = calculateHistogram(dest);
